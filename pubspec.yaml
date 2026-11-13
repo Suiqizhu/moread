@@ -1,0 +1,29 @@
+name: moread
+description: 墨读 - 一个干净的安卓本地阅读器，支持 TXT / EPUB。
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  # EPUB 解包
+  archive: ^3.6.1
+  # EPUB 里 OPF / container 的 XML 解析
+  xml: ^6.5.0
+  # 中文 TXT 常见的 GBK 解码
+  fast_gbk: ^1.0.0
+  file_picker: ^8.1.2
+  path_provider: ^2.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

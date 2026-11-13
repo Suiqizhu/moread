@@ -1,0 +1,58 @@
+name: build-apk
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+
+      - name: Dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Parser self-test
+        run: dart run tool/selftest.dart
+
+      - name: Unit tests
+        run: flutter test
+
+      - name: Build APK
+        run: flutter build apk --release --split-per-abi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: moread-apk
+          path: build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+
+      # 同时在 Release 里放一份，方便手机上直接点开下载
+      - name: Publish APK to Release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: moread build ${{ github.run_number }}
+          body: 自动构建自 ${{ github.sha }}
+          files: build/app/outputs/flutter-apk/*.apk
