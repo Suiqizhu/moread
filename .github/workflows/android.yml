@@ -39,7 +39,31 @@ jobs:
         run: flutter test
 
       - name: Build APK
-        run: flutter build apk --release --split-per-abi
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build apk --release --split-per-abi 2>&1 | tee /tmp/build.log
+
+      # 失败时把日志发到 Release，方便不开浏览器登录也能看
+      - name: Collect failure log
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "=== flutter doctor ==="; flutter doctor -v 2>&1 || true
+            echo; echo "=== java ==="; java -version 2>&1 || true
+            echo; echo "=== disk ==="; df -h; free -m
+            echo; echo "=== build log tail ==="; tail -300 /tmp/build.log 2>/dev/null || echo "(no build.log)"
+          } > /tmp/ci-failure.txt
+
+      - name: Publish failure log
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ci-log-${{ github.run_number }}
+          name: ci-log ${{ github.run_number }}
+          body: 构建失败日志
+          files: /tmp/ci-failure.txt
 
       - uses: actions/upload-artifact@v4
         with:
