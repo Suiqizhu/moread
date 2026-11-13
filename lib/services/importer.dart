@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import '../models/book.dart';
 import 'library.dart';
@@ -23,9 +24,13 @@ class Importer {
     final file = File(path);
     if (!await file.exists()) throw ImportException('文件不存在：$path');
     final bytes = await file.readAsBytes();
+    return importBytes(bytes, displayName ?? path.split('/').last);
+  }
+
+  /// 直接导入内存里的文件内容（系统选择器只给 URI 时走这里）。
+  static Future<Book> importBytes(Uint8List bytes, String name) async {
     if (bytes.isEmpty) throw ImportException('文件是空的');
 
-    final name = displayName ?? path.split('/').last;
     final ParsedBook parsed;
     try {
       parsed = BookParser.parse(bytes, name);

@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.5.0
+  sdk: ^3.10.0
 
 dependencies:
   flutter:
@@ -17,7 +17,7 @@ dependencies:
   xml: ^6.5.0
   # 中文 TXT 常见的 GBK 解码
   fast_gbk: ^1.0.0
-  file_picker: ^8.1.2
+  file_picker: ^13.3.3
   path_provider: ^2.1.4
 
 dev_dependencies:

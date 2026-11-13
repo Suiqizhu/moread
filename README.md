@@ -53,7 +53,7 @@ test/
 
 ## 构建
 
-需要 Flutter ≥ 3.27（Dart ≥ 3.6）、JDK 17、Android SDK。已在 Flutter 3.50 / AGP 9.3.1 上通过静态分析。
+需要 Flutter ≥ 3.38（Dart ≥ 3.10）、JDK 17、Android SDK。已在 Flutter 3.50 / AGP 9.3.1 上通过静态分析。
 
 ```bash
 flutter pub get

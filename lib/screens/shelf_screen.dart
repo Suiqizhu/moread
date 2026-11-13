@@ -29,26 +29,25 @@ class _ShelfScreenState extends State<ShelfScreen> {
 
   Future<void> _import() async {
     if (_busy) return;
-    final result = await FilePicker.platform.pickFiles(
+    final picked = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['txt', 'epub'],
-      allowMultiple: true,
-      withData: false,
+      dialogTitle: '选择 TXT / EPUB',
     );
-    if (result == null || result.files.isEmpty) return;
+    if (picked.isEmpty) return;
     if (!mounted) return;
 
     setState(() => _busy = true);
     var ok = 0;
     final failures = <String>[];
-    for (final f in result.files) {
-      final path = f.path;
-      if (path == null) {
-        failures.add('${f.name}：无法读取文件');
-        continue;
-      }
+    for (final f in picked) {
       try {
-        await Importer.importPath(path, displayName: f.name);
+        final path = f.path;
+        if (path != null) {
+          await Importer.importPath(path, displayName: f.name);
+        } else {
+          await Importer.importBytes(await f.readAsBytes(), f.name);
+        }
         ok++;
       } on ImportException catch (e) {
         failures.add('${f.name}：${e.message}');
