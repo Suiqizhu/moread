@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import '../models/book.dart';
@@ -19,7 +20,7 @@ class Importer {
   /// 书名生成的封面配色循环。
   static const int accentCount = 6;
 
-  /// 从任意可读路径导入一本书：解析 → 落盘正文/章节/封面 → 加入书库。
+  /// 从任意可读路径导入一本书。
   static Future<Book> importPath(String path, {String? displayName}) async {
     final file = File(path);
     if (!await file.exists()) throw ImportException('文件不存在：$path');
@@ -28,14 +29,18 @@ class Importer {
   }
 
   /// 直接导入内存里的文件内容（系统选择器只给 URI 时走这里）。
+  ///
+  /// 解析放到独立 isolate：几十 MB 的 EPUB 也不会卡住界面。
   static Future<Book> importBytes(Uint8List bytes, String name) async {
     if (bytes.isEmpty) throw ImportException('文件是空的');
 
     final ParsedBook parsed;
     try {
-      parsed = BookParser.parse(bytes, name);
+      parsed = await Isolate.run(() => BookParser.parse(bytes, name));
     } on FormatException catch (e) {
       throw ImportException(e.message);
+    } on RemoteError catch (e) {
+      throw ImportException('$e');
     }
 
     final text = parsed.text;

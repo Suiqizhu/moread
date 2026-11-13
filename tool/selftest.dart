@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:moread/models/book.dart';
+import 'package:moread/services/book_search.dart';
 import 'package:moread/services/parser.dart';
 
 int passed = 0;
@@ -64,6 +65,34 @@ void main() {
   final restored = Book.fromJson(book.toJson());
   check(restored.title == '甲' && restored.author == '乙' && restored.chapterCount == 3 && restored.percent == 0.5,
       'Book JSON 往返');
+
+  stdout.writeln('全文搜索');
+  final textBook = b1;
+  final hits = BookSearch.find(textBook.text, textBook.chapters, '斗气');
+  check(hits.length >= 2, '找到多处命中', '${hits.length}');
+  check(hits.first.chapter == 0 || hits.first.chapter == 1, '命中带章节号');
+  check(hits.first.snippet.contains('斗气'), '摘要包含关键词', hits.first.snippet);
+  check(BookSearch.find(textBook.text, textBook.chapters, '不存在的词').isEmpty, '无结果返回空');
+  check(BookSearch.find(textBook.text, textBook.chapters, '').isEmpty, '空查询返回空');
+  final limited = BookSearch.find(textBook.text, textBook.chapters, '的', limit: 3);
+  check(limited.length <= 3, 'limit 生效', '${limited.length}');
+  final hitInSecond = BookSearch.find(textBook.text, textBook.chapters, '斗气大陆').first;
+  final chapterText = textBook.text.substring(
+      textBook.chapters[hitInSecond.chapter].start, textBook.chapters[hitInSecond.chapter].end);
+  check(chapterText.startsWith(chapterText.substring(0, hitInSecond.offset)) &&
+      chapterText.substring(hitInSecond.offset).startsWith('斗气大陆'), '偏移可定位到正文');
+
+  stdout.writeln('书签');
+  final withMarks = Book.fromJson(Book(
+    id: '2',
+    title: '带书签',
+    path: '/tmp/y.txt',
+    bookmarks: [Bookmark(chapter: 1, offset: 120, title: '第二章', createdAt: DateTime(2026, 1, 2))],
+  ).toJson());
+  check(withMarks.bookmarks.length == 1, '书签能序列化');
+  check(withMarks.bookmarks.first.offset == 120 && withMarks.bookmarks.first.chapter == 1, '书签字段完整');
+  final noMarks = Book.fromJson({'id': '3', 'title': '旧数据', 'path': '/tmp/z.txt'});
+  check(noMarks.bookmarks.isEmpty, '旧书库数据兼容');
 
   stdout.writeln('\n$passed passed, $failed failed');
   if (failed > 0) exitCode = 1;

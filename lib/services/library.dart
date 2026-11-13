@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -7,6 +8,9 @@ import 'package:path_provider/path_provider.dart';
 import '../models/book.dart';
 
 /// 本地书库：索引 + 正文 + 章节表都放在应用私有目录，卸载即清理。
+///
+/// 性能约定：[updateProgress] 是翻页热路径，只改内存并标脏，由定时器合并写盘，
+/// 也不会 notifyListeners（否则书架会在阅读时不停重建）。
 class Library extends ChangeNotifier {
   Library._();
 
@@ -15,6 +19,10 @@ class Library extends ChangeNotifier {
   Directory? _root;
   bool _ready = false;
   final List<Book> _books = [];
+
+  bool _dirty = false;
+  Timer? _flushTimer;
+  Future<void>? _flushing;
 
   bool get ready => _ready;
   List<Book> get books => List.unmodifiable(_books);
@@ -31,6 +39,19 @@ class Library extends ChangeNotifier {
       return ab.compareTo(aa);
     });
     return list;
+  }
+
+  Book? get lastRead {
+    Book? result;
+    var best = 0;
+    for (final b in _books) {
+      final t = b.lastReadAt?.millisecondsSinceEpoch ?? 0;
+      if (t > best) {
+        best = t;
+        result = b;
+      }
+    }
+    return result;
   }
 
   Future<Directory> get root async {
@@ -65,10 +86,41 @@ class Library extends ChangeNotifier {
   }
 
   Future<void> saveIndex() async {
+    // 串行化写盘，避免两个写入交错覆盖。
+    while (_flushing != null) {
+      await _flushing;
+    }
+    final future = _writeIndex();
+    _flushing = future;
+    try {
+      await future;
+    } finally {
+      _flushing = null;
+    }
+  }
+
+  Future<void> _writeIndex() async {
     final f = await _indexFile();
     final tmp = File('${f.path}.tmp');
     await tmp.writeAsString(jsonEncode(_books.map((b) => b.toJson()).toList()), flush: true);
     await tmp.rename(f.path);
+    _dirty = false;
+  }
+
+  /// 合并写盘：最多 3 秒落一次。
+  void _markDirty() {
+    _dirty = true;
+    _flushTimer ??= Timer(const Duration(seconds: 3), () {
+      _flushTimer = null;
+      if (_dirty) flush();
+    });
+  }
+
+  Future<void> flush() async {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    if (!_dirty) return;
+    await saveIndex();
   }
 
   Future<Directory> booksDir() async {
@@ -121,16 +173,39 @@ class Library extends ChangeNotifier {
     await saveIndex();
   }
 
-  /// 保存阅读进度（高频调用，调用方负责节流）。
-  Future<void> updateProgress(Book book, {required int chapterIndex, required int charOffset, required double percent}) async {
+  /// 翻页时调用：只改内存，不通知界面。
+  void updateProgress(
+    Book book, {
+    required int chapterIndex,
+    required int charOffset,
+    required double percent,
+  }) {
     book
       ..chapterIndex = chapterIndex
       ..charOffset = charOffset
       ..percent = percent.clamp(0.0, 1.0)
       ..lastReadAt = DateTime.now();
-    if (book.percent >= 0.999) book.finished = true;
-    // 先落盘再通知，避免在页面销毁/构建过程中触发书架重建。
-    await saveIndex();
+    if (book.percent >= 0.999 && !book.finished) book.finished = true;
+    _markDirty();
+  }
+
+  Future<void> toggleBookmark(Book book, {required int chapter, required int offset, required String title}) async {
+    final existing = book.bookmarks.indexWhere((b) => b.chapter == chapter && (b.offset - offset).abs() < 1);
+    if (existing >= 0) {
+      book.bookmarks.removeAt(existing);
+    } else {
+      book.bookmarks.add(Bookmark(chapter: chapter, offset: offset, title: title, createdAt: DateTime.now()));
+    }
     notifyListeners();
+    await saveIndex();
+  }
+
+  bool hasBookmarkAt(Book book, int chapter, int offset) =>
+      book.bookmarks.any((b) => b.chapter == chapter && (b.offset - offset).abs() < 1);
+
+  Future<void> removeBookmark(Book book, Bookmark bookmark) async {
+    book.bookmarks.remove(bookmark);
+    notifyListeners();
+    await saveIndex();
   }
 }

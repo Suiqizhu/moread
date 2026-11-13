@@ -16,6 +16,30 @@ class Chapter {
       Chapter(title: j['t'] as String? ?? '', start: (j['s'] as num).toInt(), end: (j['e'] as num).toInt());
 }
 
+/// 书签：记在「章节 + 章节内偏移」，换字号后仍能回到同一段文字。
+class Bookmark {
+  const Bookmark({required this.chapter, required this.offset, this.title = '', this.createdAt});
+
+  final int chapter;
+  final int offset;
+  final String title;
+  final DateTime? createdAt;
+
+  Map<String, dynamic> toJson() => {
+        'c': chapter,
+        'o': offset,
+        't': title,
+        'at': createdAt?.millisecondsSinceEpoch,
+      };
+
+  static Bookmark fromJson(Map<String, dynamic> j) => Bookmark(
+        chapter: (j['c'] as num?)?.toInt() ?? 0,
+        offset: (j['o'] as num?)?.toInt() ?? 0,
+        title: j['t'] as String? ?? '',
+        createdAt: j['at'] == null ? null : DateTime.fromMillisecondsSinceEpoch((j['at'] as num).toInt()),
+      );
+}
+
 /// 书架上的书。章节表单独落盘，索引里只放元数据，避免每次存进度都写大 JSON。
 class Book {
   Book({
@@ -33,7 +57,8 @@ class Book {
     this.coverPath,
     this.accentIndex = 0,
     this.finished = false,
-  });
+    List<Bookmark>? bookmarks,
+  }) : bookmarks = bookmarks ?? <Bookmark>[];
 
   final String id;
   String title;
@@ -51,6 +76,11 @@ class Book {
   int accentIndex;
   bool finished;
 
+  /// 书签按插入顺序保存，界面上倒序展示。
+  final List<Bookmark> bookmarks;
+
+  bool get hasStarted => lastReadAt != null || percent > 0;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
@@ -66,6 +96,7 @@ class Book {
         'coverPath': coverPath,
         'accentIndex': accentIndex,
         'finished': finished,
+        if (bookmarks.isNotEmpty) 'bookmarks': bookmarks.map((b) => b.toJson()).toList(),
       };
 
   static Book fromJson(Map<String, dynamic> j) => Book(
@@ -84,6 +115,10 @@ class Book {
         coverPath: j['coverPath'] as String?,
         accentIndex: (j['accentIndex'] as num?)?.toInt() ?? 0,
         finished: j['finished'] as bool? ?? false,
+        bookmarks: (j['bookmarks'] as List<dynamic>?)
+                ?.map((e) => Bookmark.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            <Bookmark>[],
       );
 }
 
