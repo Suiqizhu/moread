@@ -162,10 +162,19 @@ Future<SearchHit?> showSearchSheet(
     isScrollControlled: true,
     backgroundColor: theme.chrome,
     shape: _sheetShape,
-    builder: (context) => FractionallySizedBox(
-      heightFactor: 0.86,
-      child: _SearchSheet(text: text, chapters: chapters, theme: theme),
-    ),
+    builder: (context) {
+      // 键盘弹起时把面板抬上去，别把结果挡住
+      final insets = MediaQuery.viewInsetsOf(context).bottom;
+      final screen = MediaQuery.sizeOf(context).height;
+      final height = (screen * 0.86 - insets).clamp(260.0, screen);
+      return Padding(
+        padding: EdgeInsets.only(bottom: insets),
+        child: SizedBox(
+          height: height,
+          child: _SearchSheet(text: text, chapters: chapters, theme: theme),
+        ),
+      );
+    },
   );
 }
 
